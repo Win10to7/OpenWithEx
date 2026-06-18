@@ -8,15 +8,7 @@ INT_PTR CALLBACK CCantOpenDlg::v_DlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LP
 		case WM_INITDIALOG:
 		{
 			/* Set icon */
-			HMODULE hShell32 = LoadLibraryW(L"shell32.dll");
-			HICON hiOpenWith = LoadIconW(hShell32, MAKEINTRESOURCEW(134));
-			SendDlgItemMessageW(
-				hWnd,
-				IDD_CANTOPEN_ICON,
-				STM_SETICON,
-				(WPARAM)hiOpenWith,
-				NULL
-			);
+			SetShellIcon(IDD_CANTOPEN_ICON, 134);
 
 			/* Set path text */
 			SetDlgItemTextW(

@@ -9,7 +9,7 @@ void CClassicOpenAsDlg::_InitProgList()
 	HWND hwndProgList = GetDlgItem(m_hWnd, IDD_OPENWITH_PROGLIST);
 	RECT rc;
 	GetClientRect(hwndProgList, &rc);
-	col.cx = rc.right - GetSystemMetrics(SM_CXVSCROLL) - 4 * GetSystemMetrics(SM_CXEDGE);
+	col.cx = rc.right - _GetSystemMetrics(SM_CXVSCROLL) - 4 * _GetSystemMetrics(SM_CXEDGE);
 
 	SendDlgItemMessageW(
 		m_hWnd, IDD_OPENWITH_PROGLIST,

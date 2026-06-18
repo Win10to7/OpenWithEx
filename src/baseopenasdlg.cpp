@@ -93,15 +93,7 @@ INT_PTR CALLBACK CBaseOpenAsDlg::v_DlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, 
 		case WM_INITDIALOG:
 		{
 			/* Set icon */
-			HMODULE hShell32 = LoadLibraryW(L"shell32.dll");
-			HICON hiOpenWith = LoadIconW(hShell32, MAKEINTRESOURCEW(134));
-			SendDlgItemMessageW(
-				hWnd,
-				IDD_OPENWITH_ICON,
-				STM_SETICON,
-				(WPARAM)hiOpenWith,
-				NULL
-			);
+			SetShellIcon(IDD_OPENWITH_ICON, 134);
 
 			/* Set path text */
 			SetDlgItemTextW(

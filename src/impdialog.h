@@ -15,6 +15,9 @@ protected:
 
 	virtual INT_PTR CALLBACK v_DlgProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) = 0;
 
+	void SetShellIcon(UINT uControlId, int iIconId);
+	int _GetSystemMetrics(int nIndex);
+
 	CImpDialog(HINSTANCE hInst, UINT uDlgId);
 
 public:
