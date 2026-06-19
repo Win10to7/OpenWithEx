@@ -20,3 +20,8 @@ enum class CheckUserChoiceHashResult
 	// Error reading or generating the hash.
 	ERR_OTHER,
 };
+
+/**
+ * Check that the current user default matches the expected ProgID.
+ */
+bool CheckCurrentDefaultProgId(LPCWSTR lpszExtension, LPCWSTR lpszProgId);

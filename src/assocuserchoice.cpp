@@ -25,7 +25,6 @@
 #include <shlobj.h> // for SHChangeNotify
 #include <rpc.h> // for UuidCreate
 #include "versionhelper.h" // for CVersionHelper
-#include "shellprotectedreglock.h" // for SH***ProtectedValue APIs
 
 #include <memory>
 
@@ -517,15 +516,6 @@ static HRESULT WriteToRegistry(
 		return HRESULT_FROM_WIN32(ls);
 	}
 
-	// Windows file association keys are read-only (Deny Set Value) for the
-	// user, meaning that they can not be modified, but can be deleted and
-	// recreated. We don't set any similar special permissions.
-	// NOTE: This only applies to file extensions, not URL protocols.
-	if (lpszExtension && lpszExtension[0] == '.')
-	{
-		ls = SHDeleteProtectedValue(hKeyAssoc.get(), NULL, L"UserChoice", true);
-	}
-
 	// According to Mozilla, some keys may be protected from modification by
 	// certain kernel drivers; renaming the keys to a random UUID is sufficient
 	// to bypass this.
@@ -538,29 +528,73 @@ static HRESULT WriteToRegistry(
 		return HRESULT_FROM_WIN32(ls);
 	}
 
-	DWORD progIdByteCount = (lstrlenW(lpszProgId) + 1) * sizeof(WCHAR);
-	ls = SHSetProtectedValue(
-		hKeyAssoc.get(),
-		L"UserChoice",
-		L"ProgId",
-		false,
-		lpszProgId,
-		progIdByteCount
-	);
+	HRESULT hr = S_OK;
 
-	DWORD hashByteCount = (lstrlenW(pszHash.get()) + 1) * sizeof(WCHAR);
-	ls = SHSetProtectedValue(
-		hKeyAssoc.get(),
-		L"UserChoice",
-		L"Hash",
-		false,
-		pszHash.get(),
-		hashByteCount
-	);
-
-	if (ls != ERROR_SUCCESS)
+	if (lpszExtension && lpszExtension[0] == '.')
 	{
-		return HRESULT_FROM_WIN32(ls);
+		ls = RegDeleteKeyW(hKeyAssoc.get(), L"UserChoice");
+
+		if (ls != ERROR_SUCCESS && ls != ERROR_FILE_NOT_FOUND)
+		{
+			hr = HRESULT_FROM_WIN32(ls);
+		}
+	}
+
+	wil::unique_hkey hKeyUserChoice = nullptr;
+	if (SUCCEEDED(hr))
+	{
+		ls = RegCreateKeyExW(
+			hKeyAssoc.get(),
+			L"UserChoice",
+			0,
+			nullptr,
+			0,
+			KEY_READ | KEY_WRITE,
+			0,
+			&hKeyUserChoice,
+			nullptr
+		);
+
+		if (ls != ERROR_SUCCESS)
+		{
+			hr = HRESULT_FROM_WIN32(ls);
+		}
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		DWORD progIdByteCount = (lstrlenW(lpszProgId) + 1) * sizeof(WCHAR);
+		ls = RegSetValueExW(
+			hKeyUserChoice.get(),
+			L"ProgId",
+			0,
+			REG_SZ,
+			reinterpret_cast<const BYTE *>(lpszProgId),
+			progIdByteCount
+		);
+
+		if (ls != ERROR_SUCCESS)
+		{
+			hr = HRESULT_FROM_WIN32(ls);
+		}
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		DWORD hashByteCount = (lstrlenW(pszHash.get()) + 1) * sizeof(WCHAR);
+		ls = RegSetValueExW(
+			hKeyUserChoice.get(),
+			L"Hash",
+			0,
+			REG_SZ,
+			reinterpret_cast<const BYTE *>(pszHash.get()),
+			hashByteCount
+		);
+
+		if (ls != ERROR_SUCCESS)
+		{
+			hr = HRESULT_FROM_WIN32(ls);
+		}
 	}
 
 	ls = RegRenameKey(hKeyAssoc.get(), nullptr, lpszExtension);
@@ -570,7 +604,50 @@ static HRESULT WriteToRegistry(
 		return HRESULT_FROM_WIN32(ls);
 	}
 
-	return S_OK;
+	return hr;
+}
+/**
+ * Confirm that Windows accepted the new ProgID as the current default.
+ */
+static bool VerifyDefaultAssociation(LPCWSTR lpszExtension, LPCWSTR lpszProgId)
+{
+	wil::com_ptr<IApplicationAssociationRegistration> pAAR = nullptr;
+	HRESULT hr = CoCreateInstance(
+		CLSID_ApplicationAssociationRegistration,
+		nullptr,
+		CLSCTX_INPROC,
+		IID_PPV_ARGS(&pAAR)
+	);
+
+	if (FAILED(hr))
+	{
+		return false;
+	}
+
+	wil::unique_cotaskmem_string spszCurrentProgId = nullptr;
+	ASSOCIATIONTYPE assocType = (lpszExtension && lpszExtension[0] == '.')
+		? AT_FILEEXTENSION
+		: AT_URLPROTOCOL;
+
+	hr = pAAR->QueryCurrentDefault(
+		lpszExtension,
+		assocType,
+		AL_USER,
+		&spszCurrentProgId
+	);
+
+	if (FAILED(hr) || !spszCurrentProgId)
+	{
+		return false;
+	}
+
+	return CompareStringOrdinal(
+		spszCurrentProgId.get(),
+		-1,
+		lpszProgId,
+		-1,
+		FALSE
+	) == CSTR_EQUAL;
 }
 #pragma endregion
 #pragma endregion
@@ -785,8 +862,12 @@ SetUserChoiceAndHashResult SetUserChoiceAndHash(LPCWSTR lpszExtension, LPCWSTR l
 		return SetUserChoiceAndHashResult::FAIL;
 	}
 
+	if (!VerifyDefaultAssociation(lpszExtension, lpszProgId))
+	{
+		return SetUserChoiceAndHashResult::FAIL;
+	}
+
 	// Notify shell to refresh icons:
 	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
-
 	return SetUserChoiceAndHashResult::OK;
 }

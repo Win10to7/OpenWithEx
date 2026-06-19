@@ -1,6 +1,9 @@
 #include "test_userchoice.h"
 
+#include <shlobj.h>
+
 #include "../assocuserchoice.h"
+#include "../wil/com.h"
 
 #include "../wil/resource.h"
 
@@ -163,4 +166,41 @@ CheckUserChoiceHashResult CheckUserChoiceHash(
 	}
 
 	return CheckUserChoiceHashResult::OK_V1;
+}
+
+bool CheckCurrentDefaultProgId(LPCWSTR lpszExtension, LPCWSTR lpszProgId)
+{
+	wil::com_ptr<IApplicationAssociationRegistration> pAAR = nullptr;
+	if (FAILED(CoCreateInstance(
+		CLSID_ApplicationAssociationRegistration,
+		nullptr,
+		CLSCTX_INPROC,
+		IID_PPV_ARGS(&pAAR)
+	)))
+	{
+		return false;
+	}
+
+	wil::unique_cotaskmem_string spszCurrentProgId = nullptr;
+	ASSOCIATIONTYPE assocType = (lpszExtension && lpszExtension[0] == '.')
+		? AT_FILEEXTENSION
+		: AT_URLPROTOCOL;
+
+	if (FAILED(pAAR->QueryCurrentDefault(
+		lpszExtension,
+		assocType,
+		AL_USER,
+		&spszCurrentProgId
+	)) || !spszCurrentProgId)
+	{
+		return false;
+	}
+
+	return CompareStringOrdinal(
+		spszCurrentProgId.get(),
+		-1,
+		lpszProgId,
+		-1,
+		FALSE
+	) == CSTR_EQUAL;
 }

@@ -124,8 +124,10 @@ HRESULT SetDefaultAssociationForAfter1703(LPCWSTR szExtOrProtocol, IAssocHandler
 			szExtOrProtocol,
 			spszProgId.get()
 		);
-		
-	return S_OK;
+
+	return (userChoiceResult == SetUserChoiceAndHashResult::OK)
+		? S_OK
+		: E_FAIL;
 }
 
 /**
