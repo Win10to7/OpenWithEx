@@ -1,4 +1,6 @@
 #include "impdialog.h"
+#include <commctrl.h>
+
 
 INT_PTR CALLBACK CImpDialog::s_DlgProc(
 	HWND   hWnd,
@@ -49,18 +51,49 @@ INT_PTR CALLBACK CImpDialog::s_DlgProc(
 void CImpDialog::SetShellIcon(UINT uControlId, int iIconId)
 {
 	static HMODULE hShell32 = GetModuleHandleW(L"shell32.dll");
+	static HMODULE hComctl32 = GetModuleHandleW(L"comctl32.dll");
+	using LoadIconWithScaleDown_t = HRESULT (WINAPI *)(HINSTANCE, PCWSTR, int, int, HICON *);
+	static LoadIconWithScaleDown_t pfnLoadIconWithScaleDown =
+		(LoadIconWithScaleDown_t)GetProcAddress(hComctl32, "LoadIconWithScaleDown");
 
-	int cxIcon = _GetSystemMetrics(SM_CXICON);
-	int cyIcon = _GetSystemMetrics(SM_CYICON);
+	HWND hIconWnd = GetDlgItem(m_hWnd, uControlId);
+	RECT rcIcon{};
+	GetClientRect(hIconWnd, &rcIcon);
 
-	HICON hIcon = (HICON)LoadImageW(
-		hShell32,
-		MAKEINTRESOURCEW(iIconId),
-		IMAGE_ICON,
-		cxIcon,
-		cyIcon,
-		LR_DEFAULTCOLOR
-	);
+	int cxIcon = rcIcon.right - rcIcon.left;
+	int cyIcon = rcIcon.bottom - rcIcon.top;
+	if (cxIcon <= 0 || cyIcon <= 0)
+	{
+		cxIcon = _GetSystemMetrics(SM_CXSMICON);
+		cyIcon = _GetSystemMetrics(SM_CYSMICON);
+	}
+
+	HICON hIcon = nullptr;
+	if (pfnLoadIconWithScaleDown)
+	{
+		if (FAILED(pfnLoadIconWithScaleDown(
+			hShell32,
+			MAKEINTRESOURCEW(iIconId),
+			cxIcon,
+			cyIcon,
+			&hIcon)))
+		{
+			hIcon = nullptr;
+		}
+	}
+
+	if (!hIcon)
+	{
+		hIcon = (HICON)LoadImageW(
+			hShell32,
+			MAKEINTRESOURCEW(iIconId),
+			IMAGE_ICON,
+			cxIcon,
+			cyIcon,
+			LR_DEFAULTCOLOR
+		);
+	}
+
 	if (hIcon)
 	{
 		SendDlgItemMessageW(
