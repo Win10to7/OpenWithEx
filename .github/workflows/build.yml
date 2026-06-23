@@ -32,5 +32,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: OpenWithEx-${{ matrix.platform }}
-          path: bin/${{ matrix.artifact_dir }}/
+          path: build/${{ matrix.artifact_dir }}/
           if-no-files-found: error
