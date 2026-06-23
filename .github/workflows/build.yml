@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x64
+            artifact_dir: Release-x64
+          - platform: x86
+            artifact_dir: Release-Win32
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSBuild
+        uses: microsoft/setup-msbuild@v2
+        with:
+          vs-version: '[17.0,18.0)'
+
+      - name: Build solution
+        run: msbuild OpenWithEx.sln /m /p:Configuration=Release /p:Platform=${{ matrix.platform }} /p:VcpkgEnabled=false
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenWithEx-${{ matrix.platform }}
+          path: bin/${{ matrix.artifact_dir }}/
+          if-no-files-found: error
